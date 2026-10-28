@@ -545,16 +545,18 @@ for(const tab of ['types','buyers','matrix']){
  const dateButton=h.match(/<button\b[^>]*id="a-period"[^>]*>/)?.[0];
  assert.ok(dateButton?.includes('issue-date-trigger')&&dateButton.includes('aria-haspopup="dialog"'),'Analytics must use the shared date button');
  assert.ok(!/<select\b[^>]*id="a-period"/.test(h));
- assert.ok(!/Не сопоставлено|data-map-campaign|a-unmatched|CSV|Выгрузить/.test(h));
+ assert.ok(!/Не сопоставлено|data-map-campaign|a-unmatched/.test(h));
  assert.ok(!/Spend AIO|Профит/i.test(h.replace(/<[^>]+>/g,'')),'Analytics metric labels must use Spend and Profit');
 }
-// Registry uses the same date control and never exposes the removed manual-matching/export UI.
+// Registry uses the same date control and never exposes the removed manual-matching UI.
 assert.ok(!('openUnmatched' in accountModule));
+assert.ok(renderAnalytics().includes('id="a-export"'),'Analytics exposes CSV export');
+assert.ok(renderAccounts().includes('id="accounts-export"'),'Accounts exposes CSV export');
 const registry=renderAccounts();
 const registryDateButton=registry.match(/<button\b[^>]*id="accounts-period"[^>]*>/)?.[0];
 assert.ok(registryDateButton?.includes('issue-date-trigger')&&registryDateButton.includes('aria-haspopup="dialog"'));
 assert.ok(!/<select\b[^>]*id="accounts-period"/.test(registry));
-assert.ok(!/account-footnotes|accounts-unmatched|data-map-campaign|Не сопоставлено|CSV|Выгрузить|¹|²/.test(registry));
+assert.ok(!/account-footnotes|accounts-unmatched|data-map-campaign|Не сопоставлено|¹|²/.test(registry));
 assert.ok(!/Spend AIO|Профит/i.test(registry.replace(/<[^>]+>/g,'')),'Registry metric labels must use Spend and Profit');
 assert.ok(!/Spend AIO|Профит/i.test(campaignDetail.replace(/<[^>]+>/g,'')),'Campaign metric labels must use Spend and Profit');
 const beforeBadgeAccounts=db.accounts;

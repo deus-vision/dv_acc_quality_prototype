@@ -1,5 +1,6 @@
-import { db, ui, teamAccounts, teamTypes, teamUsers, filteredAccounts, aggregate, rerender, navigate, esc, money, num, pct, icon, modal, closeModal } from './core.js';
+import { db, ui, teamAccounts, teamTypes, teamUsers, filteredAccounts, aggregate, rerender, navigate, esc, money, num, pct, icon, modal, closeModal, getIssueDateRange, toast } from './core.js';
 import {renderIssueDatePicker,bindIssueDatePicker} from './date-picker.js';
+import {csvNumber,downloadCsv} from './csv.js';
 
 const metricDefs = {
   spendPer: { label:'Средний Spend на кабинет', help:'Spend / число кабинетов с полученным Spend', fields:['spend'], format:v=>money(v), lower:false },
@@ -64,6 +65,33 @@ function filterBar(){
 function groupRows(rows,by='types'){
   const field=by==='buyers'?'buyerId':'typeId',list=by==='buyers'?teamUsers():teamTypes(true);
   return list.map((item,i)=>{const entries=rows.filter(a=>a[field]===item.id);return {id:item.id,name:by==='buyers'?item.username:item.name,color:colorValue(item.color||colors[i%colors.length]),subtitle:by==='buyers'?(item.aio&&item.aio!==item.username?item.aio:({buyer:'Байер',lead:'Тимлид',admin:'Администратор'}[item.role]||'Байер')):`${money(item.price)} · текущая цена`,...safeAggregate(entries)};}).filter(g=>g.count>0);
+}
+export function buildAnalyticsExport(rows=filteredAccounts(),tab=ui.analysisTab){
+  const mode=['types','buyers','matrix'].includes(tab)?tab:'types';
+  const groups=mode==='matrix'
+    ?teamUsers().flatMap(buyer=>groupRows(rows.filter(a=>a.buyerId===buyer.id),'types').map(group=>({...group,typeName:group.name,buyerName:buyer.username})))
+    :groupRows(rows,mode).map(group=>({...group,typeName:mode==='types'?group.name:'',buyerName:mode==='buyers'?group.name:''}));
+  const columns=[
+    ['Кабинетов','count'],['Стоимость кабинетов, USD','cost'],['Средняя цена кабинета, USD','avgCost'],
+    ['Spend, USD','spend'],['Revenue, USD','revenue'],['Profit до стоимости кабинетов, USD','profit'],['Profit с кабинетов, USD','net'],['ROI, %','roi'],
+    ['Raw Spend Meta, USD','raw'],['Разница Spend − Raw Spend, USD',g=>g.spend==null||g.raw==null?null:g.spend-g.raw],
+    ['Средний Spend на кабинет, USD','spendPer'],['Средний Profit на кабинет до стоимости кабинетов, USD','profitPer'],['Средний Revenue на кабинет, USD','revenuePer'],
+    ['Стоимость на 1000 USD Spend, USD','costPer1000'],['Стоимость на 1000 USD Profit, USD','costPer1000Profit'],['Стоимость на 1000 USD Revenue, USD','costPer1000Revenue'],
+    ['Active, кабинетов','active'],['Disabled, кабинетов','disabled'],['Unsettled, кабинетов','unsettled'],
+    ['Без статуса, кабинетов',g=>g.count-g.knownStatus],['Другие статусы, кабинетов',g=>g.knownStatus-g.active-g.disabled-g.unsettled],['С известным статусом, кабинетов','knownStatus'],
+    ['Active от всей выборки, %',g=>g.count?g.active/g.count*100:0],['Disabled от всей выборки, %',g=>g.count?g.disabled/g.count*100:0],
+    ['Unsettled от всей выборки, %',g=>g.count?g.unsettled/g.count*100:0],['Без статуса от всей выборки, %',g=>g.count?(g.count-g.knownStatus)/g.count*100:0],
+    ['Другие статусы от всей выборки, %',g=>g.count?(g.knownStatus-g.active-g.disabled-g.unsettled)/g.count*100:0],['Disabled среди известных статусов, %','disabledRate'],
+    ['С полученным Spend, кабинетов',g=>g.knownCounts.spend],['С полученным Revenue, кабинетов',g=>g.knownCounts.revenue],['С полученным Profit, кабинетов',g=>g.knownCounts.profit],
+    ['С полученным Raw Spend, кабинетов',g=>g.knownCounts.raw],['С указанной стоимостью, кабинетов',g=>g.knownCounts.cost],['С неполными финансовыми данными, кабинетов','missing']
+  ];
+  const range=getIssueDateRange(),reportDate='2026-10-23';
+  const record=(group,kind)=>[kind,group.typeName||'',group.buyerName||'',...columns.map(([,key])=>csvNumber(typeof key==='function'?key(group):group[key])),range.from,range.to,reportDate];
+  return {
+    headers:['Строка','Тип кабинета','Байер',...columns.map(([label])=>label),'Дата выдачи от (фильтр)','Дата выдачи до (фильтр)','Финансовые данные по'],
+    rows:rows.length?[...groups.map(group=>record(group,'Группа')),record(safeAggregate(rows),'Итого')]:[],
+    filename:`account-lab-analytics-${mode}-${range.from||'all'}${range.to?'-'+range.to:''}.csv`
+  };
 }
 export function statusBreakdown(g){
   const counts=g.statusCounts||{},total=g.count||0;
@@ -140,7 +168,7 @@ function bindTooltips(){
 }
 export function renderAnalytics(){
   hideTooltip();initUI();const rows=filteredAccounts(),total=safeAggregate(rows),groups=groupRows(rows,ui.analysisTab==='buyers'?'buyers':'types');
-  return `<div class="analytics-page"><div class="a-page-heading"><div><div class="a-eyebrow">ACCOUNT INTELLIGENCE</div><h1>Аналитика кабинетов</h1><p class="muted">Какие кабинеты дают больше. И сколько это стоит.</p></div><div class="a-heading-actions"><button class="btn btn-primary" id="a-add" data-add>${icon('plus')} Добавить кабинеты</button></div></div>
+  return `<div class="analytics-page"><div class="a-page-heading"><div><div class="a-eyebrow">ACCOUNT INTELLIGENCE</div><h1>Аналитика кабинетов</h1><p class="muted">Какие кабинеты дают больше. И сколько это стоит.</p></div><div class="a-heading-actions"><button type="button" class="btn" id="a-export" title="Все показатели текущей вкладки с учётом фильтров" ${rows.length?'':'disabled'}>${icon('download')} Выгрузить CSV</button><button class="btn btn-primary" id="a-add" data-add>${icon('plus')} Добавить кабинеты</button></div></div>
   ${filterBar()}<div class="a-cohort-note"><span>${icon('info')} Результаты с даты выдачи до 23 октября · статусы текущие</span><button id="a-methodology" class="a-text-button">Как считаем ${arrow}</button></div>${summary(total)}
   <div class="a-view-tabs" role="tablist" aria-label="Представление аналитики">${[['types','По типам','box'],['buyers','По байерам','users'],['matrix','Байер × тип','grid']].map(([id,label,glyph])=>`<button role="tab" aria-selected="${ui.analysisTab===id}" data-analysis-tab="${id}" class="a-view-tab ${ui.analysisTab===id?'active':''}">${icon(glyph)}${label}</button>`).join('')}<span class="a-view-tail">${num(total.count)} кабинетов в выборке</span></div>
   ${total.missing?`<div class="a-data-note">${icon('info')} <span>У ${num(total.missing)} кабинетов неполные данные AIO. Знак <span class="a-partial-mark">*</span> — не все данные получены. Наведите на число для пояснения.</span><button class="a-text-button" id="a-missing">Посмотреть ${arrow}</button></div>`:''}
@@ -148,6 +176,7 @@ export function renderAnalytics(){
   </div>`;
 }
 export function bindAnalytics(){
+  document.querySelector('#a-export')?.addEventListener('click',()=>{const report=buildAnalyticsExport();if(!report.rows.length)return;downloadCsv(report.filename,report.headers,report.rows);toast('CSV сформирован с учётом фильтров');});
   document.querySelectorAll('[data-analysis-tab]').forEach(el=>el.addEventListener('click',()=>{ui.analysisTab=el.dataset.analysisTab;rerender();}));
   bindIssueDatePicker('a-period');
   for(const key of ['buyer','type','status','geo'])document.querySelector(`#a-${key}`)?.addEventListener('change',e=>{ui.filters[key]=e.target.value;if(key!=='status')ui.filters.search='';rerender();});

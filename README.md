@@ -25,13 +25,21 @@ All persistent mock state is browser-local under `dv-account-lab-v1`. The reset 
 - `dist/account-tooltips.js`: shared popup lifecycle for campaign lists, column help, status reasons and total explanations.
 - Feature CSS alongside the shared `dist/app.css`; no third-party runtime or remote asset dependency.
 
-New mean Profit and cost-per-$1,000 Profit metrics use source Profit AIO before account purchase cost. Nonpositive denominators display a dash. Means divide each source total by the number of accounts with that specific value, including confirmed zeros and excluding missing values. Partial metrics show source-specific coverage and the actual denominator in hover, focus and tap tooltips; completely missing source values never become zero. The cohort KPI shows counts and percentages of all filtered accounts for Active, Disabled, no status and any additional statuses such as Unsettled. CSV export is omitted from this prototype. Built-in demo buyers use the provided AIO usernames; a one-time roster migration preserves existing local accounts, assignments and custom records.
+New mean Profit and cost-per-$1,000 Profit metrics use source Profit AIO before account purchase cost. Nonpositive denominators display a dash. Means divide each source total by the number of accounts with that specific value, including confirmed zeros and excluding missing values. Partial metrics show source-specific coverage and the actual denominator in hover, focus and tap tooltips; completely missing source values never become zero. The cohort KPI shows counts and percentages of all filtered accounts for Active, Disabled, no status and any additional statuses such as Unsettled. CSV export is available on Accounts and Analytics and respects all current filters. Built-in demo buyers use the provided AIO usernames; a one-time roster migration preserves existing local accounts, assignments and custom records.
 
 The add form labels IDs as Facebook ad-account IDs and accepts nonduplicate numeric IDs as local mock records without a hidden demo catalog whitelist; AIO existence checks require the future backend. A type price is only a default: the actual per-account price is frozen on save, including common bulk prices and row overrides. Changing a type default never reprices old accounts.
 
+## CSV exports
+
+Both screens have a **Выгрузить CSV** action, disabled for an empty cohort. Accounts exports all filtered accounts in the current sort order, across all pages, regardless of checkbox selection. Analytics exports all metrics for the active grouping (type, buyer, or buyer × type), plus a total row distinguished by the `Строка` column. For additional pivot tables, exclude the `Итого` row to avoid double counting.
+
+Files use UTF-8 with BOM, commas, decimal points, and CRLF line endings. Money and percentages are numeric (USD and % are stated in headers). Missing values are blank; known zero stays zero. Source Profit and Profit after account cost are separate columns. Analytics includes source coverage counts and uses the same `aggregate()` formulas and known-value denominators as the UI. Issue-date filters select accounts, not financial activity dates; financial results remain cumulative through the mock report date, 2026-10-23.
+
+Import CSV into Excel using **Data → From Text/CSV**, select UTF-8 and comma delimiter, and set Facebook ID to **Text** before loading. This preserves long IDs and avoids spreadsheet numeric rounding. Formula-like user-entered names are prefixed with an apostrophe for safe spreadsheet import.
+
 ## Validation
 
-Run `node scripts/validate.mjs` for module syntax, arithmetic, whole-cohort totals, historical cost invariants, campaign identity migration, render smoke tests, and team scoping. Browser QA covers drill-down, partial bulk import, sync help/error/running states, mobile layout, type prices, invite preview and roles. Real production authorization, credentials, scheduling and API rate limiting remain future backend work.
+Run `node scripts/validate.mjs` and `node scripts/validate-csv.mjs` for module syntax, arithmetic, whole-cohort totals, historical cost invariants, campaign identity migration, render smoke tests, and team scoping. Browser QA covers drill-down, partial bulk import, sync help/error/running states, mobile layout, type prices, invite preview and roles. Real production authorization, credentials, scheduling and API rate limiting remain future backend work.
 
 ## Local preview
 
